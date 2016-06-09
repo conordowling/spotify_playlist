@@ -1,0 +1,166 @@
+{%- extends "layout.html" %}
+
+
+{% block content %}
+
+<div class='container'>
+
+	<div class="row">
+	  <div class="col-lg-6">
+		<!-- Search Box -->
+	    <div class="input-group">
+	      <span class="input-group-btn">
+	        <button class="btn btn-default" type="button" onclick="searchSpotify()">Go!</button>
+	      </span>
+	      <input type="text" class="form-control ui-autocomplete-loading" placeholder="Search Spotify" id='searchField'>
+	    </div><!-- /input-group -->
+
+	    <!-- Search Results -->
+		<div id='results'>
+		</div>
+
+		<!-- Votes -->
+		<h3>My Votes</h3>
+		<div class='vote-container' id='votes'>
+			{% for song in votes %}
+				<div class='song-result' id='{{song["id"]}}'>
+					<div class='song-info'>
+						{{ song["name"] }}<br>
+						{{ song["artists"][0]["name"] }}
+					</div>
+					<button class='btn btn-danger add-button' onclick='unvote("{{ song['id'] }}")' >
+						<span class="glyphicon glyphicon-remove"></span>
+					</button>
+
+
+				</div>
+			{% endfor %}
+		</div>
+
+	  </div><!-- /.col-lg-6 -->
+
+	  <div class='col-lg-6'>
+	  	<iframe src="https://embed.spotify.com/?uri=spotify:user:1299133241:playlist:56LmVDtpdiNUi7rjyofIJF&theme=white" width="300" height="380" frameborder="0" allowtransparency="true"></iframe>
+	  	<iframe src="https://embed.spotify.com/follow/1/?uri=spotify:user:1299133241:playlist:56LmVDtpdiNUi7rjyofIJF&size=detail&theme=light" width="300" height="56" scrolling="no" frameborder="0" style="border:none; overflow:hidden;" allowtransparency="true"></iframe>
+	  	<div>
+	  		<h3>Trending Songs</h3>
+	  		<table class="table" style="width:300px">
+	  			{% for song in trending %}
+	  			<tr>
+	  				<td>{{ song["name"] }}<br>{{ song["artists"][0]["name"]}}</td>
+	  				<td>{{ song["votes"] }}</td>
+	  			</tr>
+
+	  			{% endfor %}
+
+
+	  		</table>
+	  	</div>
+	  </div>
+
+
+	</div>
+
+</div>
+
+
+<script src="//code.jquery.com/jquery-1.10.2.js"></script>
+<script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+<script src="static/js/spotify-web-api.js"></script>
+
+<script>
+var s = new SpotifyWebApi();
+
+
+function searchSpotify() {
+	onUserInput(document.getElementById('searchField').value);
+}
+
+var prev = null;
+
+function onUserInput(queryTerm) {
+  console.log("QUERY: " + queryTerm);
+  // abort previous request, if any
+  if (prev !== null) {
+    prev.abort();
+  }
+
+  // store the current promise in case we need to abort it
+  prev = s.searchTracks(queryTerm, {limit: 5})
+    .then(function(data) {
+
+      // clean the promise so it doesn't call abort
+      prev = null;
+
+      // ...render list of search results...
+      populateResults(data);
+
+    }, function(err) {
+      console.error(err);
+    });
+}
+
+function populateResults(data) {
+	frames = "";
+	tracks = data["tracks"]["items"];
+	for(i=0; i < tracks.length; i++) {
+		track = tracks[i];
+		uri = track['uri'];
+		frame = '<div class="song-result"> <div class="song-info"><iframe src="https://embed.spotify.com/?uri=' + uri + '" width="300" height="80" frameborder="0" allowtransparency="true"></iframe></div> <div><button class="btn btn-success add-button" onclick="vote(tracks[' + i + '])"><span class="glyphicon glyphicon-plus"></span></button></div></div>';
+
+		frames = frames + frame;
+
+	}
+	document.getElementById("results").innerHTML = frames;
+}
+
+function addVote(song) {
+	voteDiv = document.getElementById("votes");
+	voteDiv.innerHTML += '<div class="song-result" id=' + song.id + '> <div class="song-info">' + song.name + '<br>' + song.artists[0].name + '</div> <button class="btn btn-danger add-button" onclick="unvote(\'' + song.id + '\')" > <span class="glyphicon glyphicon-remove"></span></button></div>';
+}
+
+function removeVote(songID) {
+	$('#' + songID).remove();
+}
+
+function vote(song) {
+	
+	$.post("/vote", { 'userID': userID, 'songID': song['id'] }, function(data) {
+		if( data === "True" ) {
+			addVote(song);
+		}
+		console.log(data);
+	});
+}
+
+function unvote(songID) {
+	$.post("/unvote", { 'userID': userID, 'songID': songID}, function(data) {
+		if( data === "True" ) {
+			removeVote(songID);
+		}
+		console.log(data);
+	});
+}
+
+</script>
+
+<script>
+$(function() {
+	function log( message ) {
+	  $( "<div>" ).text( message ).prependTo( "#log" );
+	  $( "#log" ).scrollTop( 0 );
+	}
+
+	$( "#searchField" ).autocomplete({
+	  source: searchSpotify,
+	  minLength: 2,
+	  select: function( event, ui ) {
+	    log( ui.item ?
+	      "Selected: " + ui.item.value + " aka " + ui.item.id :
+	      "Nothing selected, input was " + this.value );
+	  }
+	});
+});
+</script>
+
+{% endblock %}
